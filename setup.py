@@ -2,7 +2,8 @@ from distutils.core import setup
 setup(
     name='pygdal',
     version='0.0.1dev',
-    description='Python Distribution Utilities',
+    description='Pythonic and full control GDAL.',
+    long_description=open("README.md").read(),
     author='Fabian Schindler',
     author_email='fabian.schindler@eox.at',
     url='https://github.com/constantinius/pygdal',
