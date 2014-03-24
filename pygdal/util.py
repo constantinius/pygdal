@@ -12,7 +12,7 @@ class ManagedObject(object):
 
 class Window(tuple):
     def __new__(cls, offset_x=None, offset_y=None, size_x=None, size_y=None):
-        obj = super(cls).__new__(offset_x, offset_y, size_x, size_y)
+        obj = super(Window, cls).__new__(cls, (offset_x, offset_y, size_x, size_y))
         for v in obj:
             if not v is None and v < 0:
                 raise ValueError
@@ -55,7 +55,7 @@ class Extent(tuple):
     def __new__(cls, min_x, min_y, max_x, max_y):
         assert(min_x <= max_x)
         assert(min_y <= max_y)
-        return super(cls).__new__(min_x, min_y, max_x, max_y)
+        return super(Extent, cls).__new__(cls, (min_x, min_y, max_x, max_y))
 
     min_x = property(lambda self: self[0])
     min_y = property(lambda self: self[1])
