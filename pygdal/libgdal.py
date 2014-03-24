@@ -3,7 +3,7 @@ from functools import wraps
 
 _libgdal = CDLL("libgdal.so")
 
-_USE_EXCEPTIONS = True
+_USE_EXCEPTIONS = False
 
 def use_exceptions(value=True):
     global _USE_EXCEPTIONS
@@ -55,12 +55,18 @@ def null_errcheck(result, func, arguments):
     return result
 
 # type declarations
+
+c_char_p_p = POINTER(c_char_p)
+
 gdal_major_object_h = c_void_p
 gdal_driver_h = c_void_p
 gdal_dataset_h = c_void_p
 gdal_rasterband_h = c_void_p
+gdal_color_table_h = c_void_p
 
 gdal_geotransform_type = c_double * 6
+
+GDAL_PROGRESS_FUNC = CFUNCTYPE(c_int, c_double, c_char_p, c_void_p)
 
 class GDAL_GCP(Structure):
     _fields_ = [
@@ -83,7 +89,6 @@ CPLGetLastErrorMsg.restype = c_char_p
 
 CPLQuietErrorHandler = _libgdal.CPLQuietErrorHandler
 CPLDefaultErrorHandler = _libgdal.CPLDefaultErrorHandler
-
 
 CPL_ERROR_HANDLER_TYPE = CFUNCTYPE(None, c_int, c_int, c_char_p)
 
@@ -177,17 +182,17 @@ GDALAllRegister = _libgdal.GDALAllRegister
 
 GDALCreate = _libgdal.GDALCreate
 GDALCreate.restype = gdal_dataset_h
-GDALCreate.argtypes = [gdal_driver_h, c_char_p, c_int, c_int, c_int, c_int, c_void_p] # TODO char **
+GDALCreate.argtypes = [gdal_driver_h, c_char_p, c_int, c_int, c_int, c_int, c_char_p_p]
 GDALCreate.errcheck = null_errcheck
 
 GDALCreateCopy = _libgdal.GDALCreateCopy
 GDALCreateCopy.restype = gdal_dataset_h
-GDALCreateCopy.argtypes = [gdal_driver_h, c_char_p, gdal_dataset_h, c_int, c_void_p, c_void_p] # TODO GDALProgressFunc, char **
+GDALCreateCopy.argtypes = [gdal_driver_h, c_char_p, gdal_dataset_h, c_int, c_char_p_p, GDAL_PROGRESS_FUNC, c_void_p]
 GDALCreateCopy.errcheck = null_errcheck
 
 GDALIdentifyDriver = _libgdal.GDALIdentifyDriver
 GDALIdentifyDriver.restype = gdal_driver_h
-GDALIdentifyDriver.argtypes = [c_char_p, c_void_p] # TODO GDALProgressFunc, char **
+GDALIdentifyDriver.argtypes = [c_char_p, c_char_p_p]
 GDALIdentifyDriver.errcheck = null_errcheck
 
 GDALOpen = _libgdal.GDALOpen
@@ -222,7 +227,7 @@ GDALDestroyDriver.argtypes = [gdal_driver_h]
 GDALRegisterDriver = _libgdal.GDALRegisterDriver
 GDALRegisterDriver.restype = c_int
 GDALRegisterDriver.argtypes = [gdal_driver_h]
-#GDALRegisterDriver.errcheck = cplerr_errcheck # TODO: proper errcheck
+GDALRegisterDriver.errcheck = cplerr_errcheck
 
 GDALDeregisterDriver = _libgdal.GDALDeregisterDriver
 GDALDeregisterDriver.argtypes = [gdal_driver_h]
@@ -246,7 +251,7 @@ GDALCopyDatasetFiles.errcheck = cplerr_errcheck
 
 GDALValidateCreationOptions = _libgdal.GDALValidateCreationOptions
 GDALValidateCreationOptions.restype = c_int
-GDALValidateCreationOptions.argtypes = [gdal_driver_h, c_void_p] # TODO char **
+GDALValidateCreationOptions.argtypes = [gdal_driver_h, c_char_p_p]
 
 GDALGetDriverShortName = _libgdal.GDALGetDriverShortName
 GDALGetDriverShortName.restype = c_char_p
@@ -274,7 +279,7 @@ GDALGetDriverCreationOptionList.argtypes = [gdal_driver_h]
 
 
 GDALApplyGeoTransform = _libgdal.GDALApplyGeoTransform
-GDALApplyGeoTransform.argtypes = [gdal_geotransform_type, c_double, c_double, c_double_p, c_double_p]
+GDALApplyGeoTransform.argtypes = [gdal_geotransform_type, c_double, c_double, POINTER(c_double), POINTER(c_double)]
 
 
 """
@@ -334,7 +339,7 @@ GDALGetRasterBand.errcheck = null_errcheck
 
 GDALAddBand = _libgdal.GDALAddBand
 GDALAddBand.restype = c_int
-GDALAddBand.argtypes = [gdal_dataset_h, c_int, c_void_p] # TODO: char**
+GDALAddBand.argtypes = [gdal_dataset_h, c_int, c_char_p_p]
 GDALAddBand.errcheck = cplerr_errcheck
 
 """
@@ -346,7 +351,7 @@ CPLErr  GDALDatasetRasterIO (GDALDatasetH hDS, GDALRWFlag eRWFlag, int nDSXOff, 
 
 GDALDatasetAdviseRead = _libgdal.GDALDatasetAdviseRead
 GDALDatasetAdviseRead.restype = c_int
-GDALDatasetAdviseRead.argtypes = [gdal_dataset_h, c_int, c_int, c_int, c_int, c_int, c_int, c_int_p, c_void_p] # TODO: char**
+GDALDatasetAdviseRead.argtypes = [gdal_dataset_h, c_int, c_int, c_int, c_int, c_int, c_int, POINTER(c_int), c_char_p_p]
 GDALDatasetAdviseRead.errcheck = cplerr_errcheck
 
 GDALGetProjectionRef = _libgdal.GDALGetProjectionRef
@@ -361,7 +366,7 @@ GDALSetProjection.errcheck = cplerr_errcheck
 GDALGetGeoTransform = _libgdal.GDALGetGeoTransform
 GDALGetGeoTransform.restype = c_int
 GDALGetGeoTransform.argtypes = [gdal_dataset_h, gdal_geotransform_type]
-GDALGetGeoTransform.errcheck = cplerr_errcheck
+#GDALGetGeoTransform.errcheck = cplerr_errcheck # TODO not working here...
 
 GDALSetGeoTransform = _libgdal.GDALSetGeoTransform
 GDALSetGeoTransform.restype = c_int
@@ -410,79 +415,164 @@ int     GDALGetAccess (GDALDatasetH hDS)
 void    GDALFlushCache (GDALDatasetH hDS)
     Flush all write cached data to disk. 
 CPLErr  GDALCreateDatasetMaskBand (GDALDatasetH hDS, int nFlags)
-    Adds a mask band to the dataset. 
+    Adds a mask band to the dataset.
+"""
+
+GDALDatasetCopyWholeRaster = _libgdal.GDALDatasetCopyWholeRaster
+GDALDatasetCopyWholeRaster.restype = c_int
+GDALDatasetCopyWholeRaster.argtypes = [gdal_dataset_h, gdal_dataset_h, c_char_p_p, GDAL_PROGRESS_FUNC, c_void_p]
+GDALDatasetCopyWholeRaster.errcheck = cplerr_errcheck
+
+
+"""
 CPLErr  GDALDatasetCopyWholeRaster (GDALDatasetH hSrcDS, GDALDatasetH hDstDS, char **papszOptions, GDALProgressFunc pfnProgress, void *pProgressData)
     Copy all dataset raster data. 
 CPLErr  GDALRasterBandCopyWholeRaster (GDALRasterBandH hSrcBand, GDALRasterBandH hDstBand, char **papszOptions, GDALProgressFunc pfnProgress, void *pProgressData)
     Copy all raster band raster data. 
 CPLErr  GDALRegenerateOverviews (GDALRasterBandH hSrcBand, int nOverviewCount, GDALRasterBandH *pahOverviewBands, const char *pszResampling, GDALProgressFunc pfnProgress, void *pProgressData)
     Generate downsampled overviews. 
-GDALDataType    GDALGetRasterDataType (GDALRasterBandH)
-    Fetch the pixel data type for this band. 
-void    GDALGetBlockSize (GDALRasterBandH, int *pnXSize, int *pnYSize)
-    Fetch the "natural" block size of this band. 
+"""
+
+GDALGetRasterDataType = _libgdal.GDALGetRasterDataType
+GDALGetRasterDataType.restype = c_int
+GDALGetRasterDataType.argtypes = [gdal_rasterband_h]
+
+GDALGetBlockSize = _libgdal.GDALGetBlockSize
+GDALGetBlockSize.argtypes = [gdal_rasterband_h, POINTER(c_int), POINTER(c_int)]
+
+
+""" 
 CPLErr  GDALRasterAdviseRead (GDALRasterBandH hRB, int nDSXOff, int nDSYOff, int nDSXSize, int nDSYSize, int nBXSize, int nBYSize, GDALDataType eBDataType, char **papszOptions)
     Advise driver of upcoming read requests. 
-CPLErr  GDALRasterIO (GDALRasterBandH hRBand, GDALRWFlag eRWFlag, int nDSXOff, int nDSYOff, int nDSXSize, int nDSYSize, void *pBuffer, int nBXSize, int nBYSize, GDALDataType eBDataType, int nPixelSpace, int nLineSpace)
-    Read/write a region of image data for this band. 
-CPLErr  GDALReadBlock (GDALRasterBandH, int, int, void *)
-    Read a block of image data efficiently. 
-CPLErr  GDALWriteBlock (GDALRasterBandH, int, int, void *)
-    Write a block of image data efficiently. 
-int     GDALGetRasterBandXSize (GDALRasterBandH)
-    Fetch XSize of raster. 
-int     GDALGetRasterBandYSize (GDALRasterBandH)
-    Fetch YSize of raster. 
-GDALAccess  GDALGetRasterAccess (GDALRasterBandH)
-    Find out if we have update permission for this band. 
-int     GDALGetBandNumber (GDALRasterBandH)
-    Fetch the band number. 
-GDALDatasetH    GDALGetBandDataset (GDALRasterBandH)
-    Fetch the owning dataset handle. 
-GDALColorInterp     GDALGetRasterColorInterpretation (GDALRasterBandH)
-    How should this band be interpreted as color? 
-CPLErr  GDALSetRasterColorInterpretation (GDALRasterBandH, GDALColorInterp)
-    Set color interpretation of a band. 
-GDALColorTableH     GDALGetRasterColorTable (GDALRasterBandH)
-    Fetch the color table associated with band. 
-CPLErr  GDALSetRasterColorTable (GDALRasterBandH, GDALColorTableH)
-    Set the raster color table. 
-int     GDALHasArbitraryOverviews (GDALRasterBandH)
-    Check for arbitrary overviews. 
-int     GDALGetOverviewCount (GDALRasterBandH)
-    Return the number of overview layers available. 
-GDALRasterBandH     GDALGetOverview (GDALRasterBandH, int)
-    Fetch overview raster band object. 
-double  GDALGetRasterNoDataValue (GDALRasterBandH, int *)
-    Fetch the no data value for this band. 
-CPLErr  GDALSetRasterNoDataValue (GDALRasterBandH, double)
-    Set the no data value for this band. 
+"""
+
+GDALRasterIO = _libgdal.GDALRasterIO
+GDALRasterIO.restype = c_int
+GDALRasterIO.argtypes = [gdal_rasterband_h, c_int, c_int, c_int, c_int, c_int, c_void_p, c_int, c_int, c_int, c_int, c_int]
+GDALRasterIO.errcheck = cplerr_errcheck
+
+GDALReadBlock = _libgdal.GDALReadBlock
+GDALReadBlock.restype = c_int
+GDALReadBlock.argtypes = [gdal_rasterband_h, c_int, c_int, c_void_p]
+GDALReadBlock.errcheck = cplerr_errcheck
+
+GDALWriteBlock = _libgdal.GDALWriteBlock
+GDALWriteBlock.restype = c_int
+GDALWriteBlock.argtypes = [gdal_rasterband_h, c_int, c_int, c_void_p]
+GDALWriteBlock.errcheck = cplerr_errcheck
+
+GDALGetRasterBandXSize = _libgdal.GDALGetRasterBandXSize
+GDALGetRasterBandXSize.restype = c_int
+GDALGetRasterBandXSize.argtypes = [gdal_rasterband_h]
+
+GDALGetRasterBandYSize = _libgdal.GDALGetRasterBandYSize
+GDALGetRasterBandYSize.restype = c_int
+GDALGetRasterBandYSize.argtypes = [gdal_rasterband_h]
+
+GDALGetRasterAccess = _libgdal.GDALGetRasterAccess
+GDALGetRasterAccess.restype = c_int
+GDALGetRasterAccess.argtypes = [gdal_rasterband_h]
+
+GDALGetBandNumber = _libgdal.GDALGetBandNumber
+GDALGetBandNumber.restype = c_int
+GDALGetBandNumber.argtypes = [gdal_rasterband_h]
+
+GDALGetBandDataset = _libgdal.GDALGetBandDataset
+GDALGetBandDataset.restype = gdal_dataset_h
+GDALGetBandDataset.argtypes = [gdal_rasterband_h]
+
+GDALGetRasterColorInterpretation = _libgdal.GDALGetRasterColorInterpretation
+GDALGetRasterColorInterpretation.restype = c_int
+GDALGetRasterColorInterpretation.argtypes = [gdal_rasterband_h]
+
+GDALSetRasterColorInterpretation = _libgdal.GDALSetRasterColorInterpretation
+GDALSetRasterColorInterpretation.restype = c_int
+GDALSetRasterColorInterpretation.argtypes = [gdal_rasterband_h, c_int]
+GDALSetRasterColorInterpretation.errcheck = cplerr_errcheck
+
+GDALGetRasterColorTable = _libgdal.GDALGetRasterColorTable
+GDALGetRasterColorTable.restype = gdal_color_table_h
+GDALGetRasterColorTable.argtypes = [gdal_rasterband_h]
+
+GDALSetRasterColorTable = _libgdal.GDALSetRasterColorTable
+GDALSetRasterColorTable.restype = c_int
+GDALSetRasterColorTable.argtypes = [gdal_rasterband_h, gdal_color_table_h]
+GDALSetRasterColorTable.errcheck = cplerr_errcheck
+
+GDALHasArbitraryOverviews = _libgdal.GDALHasArbitraryOverviews
+GDALHasArbitraryOverviews.restype = c_int
+GDALHasArbitraryOverviews.argtypes = [gdal_rasterband_h]
+
+GDALGetOverviewCount = _libgdal.GDALGetOverviewCount
+GDALGetOverviewCount.restype = c_int
+GDALGetOverviewCount.argtypes = [gdal_rasterband_h]
+
+GDALGetOverview = _libgdal.GDALGetOverview
+GDALGetOverview.restype = gdal_rasterband_h
+GDALGetOverview.argtypes = [gdal_rasterband_h, c_int]
+
+GDALGetRasterNoDataValue = _libgdal.GDALGetRasterNoDataValue
+GDALGetRasterNoDataValue.restype = c_double
+GDALGetRasterNoDataValue.argtypes = [gdal_rasterband_h, POINTER(c_int)]
+
+GDALSetRasterNoDataValue = _libgdal.GDALSetRasterNoDataValue
+GDALSetRasterNoDataValue.restype = c_int
+GDALSetRasterNoDataValue.argtypes = [gdal_rasterband_h, c_double]
+GDALSetRasterNoDataValue.errcheck = cplerr_errcheck
+
+
+"""
 char **     GDALGetRasterCategoryNames (GDALRasterBandH)
     Fetch the list of category names for this raster. 
 CPLErr  GDALSetRasterCategoryNames (GDALRasterBandH, char **)
-    Set the category names for this band. 
-double  GDALGetRasterMinimum (GDALRasterBandH, int *pbSuccess)
-    Fetch the minimum value for this band. 
-double  GDALGetRasterMaximum (GDALRasterBandH, int *pbSuccess)
-    Fetch the maximum value for this band. 
+    Set the category names for this band.
+"""
+
+GDALGetRasterMinimum = _libgdal.GDALGetRasterMinimum
+GDALGetRasterMinimum.restype = c_double
+GDALGetRasterMinimum.argtypes = [gdal_rasterband_h, POINTER(c_int)]
+
+GDALGetRasterMaximum = _libgdal.GDALGetRasterMaximum
+GDALGetRasterMaximum.restype = c_double
+GDALGetRasterMaximum.argtypes = [gdal_rasterband_h, POINTER(c_int)]
+
+"""
 CPLErr  GDALGetRasterStatistics (GDALRasterBandH, int bApproxOK, int bForce, double *pdfMin, double *pdfMax, double *pdfMean, double *pdfStdDev)
     Fetch image statistics. 
 CPLErr  GDALComputeRasterStatistics (GDALRasterBandH, int bApproxOK, double *pdfMin, double *pdfMax, double *pdfMean, double *pdfStdDev, GDALProgressFunc pfnProgress, void *pProgressData)
     Compute image statistics. 
 CPLErr  GDALSetRasterStatistics (GDALRasterBandH hBand, double dfMin, double dfMax, double dfMean, double dfStdDev)
     Set statistics on band. 
-const char *    GDALGetRasterUnitType (GDALRasterBandH)
-    Return raster unit type. 
-CPLErr  GDALSetRasterUnitType (GDALRasterBandH hBand, const char *pszNewValue)
-    Set unit type. 
-double  GDALGetRasterOffset (GDALRasterBandH, int *pbSuccess)
-    Fetch the raster value offset. 
-CPLErr  GDALSetRasterOffset (GDALRasterBandH hBand, double dfNewOffset)
-    Set scaling offset. 
-double  GDALGetRasterScale (GDALRasterBandH, int *pbSuccess)
-    Fetch the raster value scale. 
-CPLErr  GDALSetRasterScale (GDALRasterBandH hBand, double dfNewOffset)
-    Set scaling ratio. 
+"""
+
+GDALGetRasterUnitType = _libgdal.GDALGetRasterUnitType
+GDALGetRasterUnitType.restype = c_char_p
+GDALGetRasterUnitType.argtypes = [gdal_rasterband_h]
+
+GDALSetRasterUnitType = _libgdal.GDALSetRasterUnitType
+GDALSetRasterUnitType.restype = c_int
+GDALSetRasterUnitType.argtypes = [gdal_rasterband_h, c_char_p]
+GDALSetRasterUnitType.errcheck = cplerr_errcheck
+
+GDALGetRasterOffset = _libgdal.GDALGetRasterOffset
+GDALGetRasterOffset.restype = c_char_p
+GDALGetRasterOffset.argtypes = [gdal_rasterband_h, POINTER(c_int)]
+
+GDALSetRasterOffset = _libgdal.GDALSetRasterOffset
+GDALSetRasterOffset.restype = c_int
+GDALSetRasterOffset.argtypes = [gdal_rasterband_h, c_double]
+GDALSetRasterOffset.errcheck = cplerr_errcheck
+
+GDALGetRasterScale = _libgdal.GDALGetRasterScale
+GDALGetRasterScale.restype = c_char_p
+GDALGetRasterScale.argtypes = [gdal_rasterband_h, POINTER(c_int)]
+
+GDALSetRasterScale = _libgdal.GDALSetRasterScale
+GDALSetRasterScale.restype = c_int
+GDALSetRasterScale.argtypes = [gdal_rasterband_h, c_double]
+GDALSetRasterScale.errcheck = cplerr_errcheck
+
+"""
 void    GDALComputeRasterMinMax (GDALRasterBandH hBand, int bApproxOK, double adfMinMax[2])
     Compute the min/max values for a band. 
 CPLErr  GDALFlushRasterCache (GDALRasterBandH hBand)
@@ -496,8 +586,14 @@ CPLErr  GDALSetDefaultHistogram (GDALRasterBandH hBand, double dfMin, double dfM
 int     GDALGetRandomRasterSample (GDALRasterBandH, int, float *)
 GDALRasterBandH     GDALGetRasterSampleOverview (GDALRasterBandH, int)
     Fetch best sampling overview. 
-CPLErr  GDALFillRaster (GDALRasterBandH hBand, double dfRealValue, double dfImaginaryValue)
-    Fill this band with a constant value. 
+"""
+
+GDALFillRaster = _libgdal.GDALFillRaster
+GDALFillRaster.restype = c_int
+GDALFillRaster.argtypes = [gdal_rasterband_h, c_double, c_double]
+GDALFillRaster.errcheck = cplerr_errcheck
+
+"""
 CPLErr  GDALComputeBandStats (GDALRasterBandH hBand, int nSampleStep, double *pdfMean, double *pdfStdDev, GDALProgressFunc pfnProgress, void *pProgressData)
 CPLErr  GDALOverviewMagnitudeCorrection (GDALRasterBandH hBaseBand, int nOverviewCount, GDALRasterBandH *pahOverviews, GDALProgressFunc pfnProgress, void *pProgressData)
 GDALRasterAttributeTableH   GDALGetDefaultRAT (GDALRasterBandH hBand)
@@ -506,12 +602,22 @@ CPLErr  GDALSetDefaultRAT (GDALRasterBandH, GDALRasterAttributeTableH)
     Set default Raster Attribute Table. 
 CPLErr  GDALAddDerivedBandPixelFunc (const char *pszName, GDALDerivedPixelFunc pfnPixelFunc)
     This adds a pixel function to the global list of available pixel functions for derived bands. 
-GDALRasterBandH     GDALGetMaskBand (GDALRasterBandH hBand)
-    Return the mask band associated with the band. 
-int     GDALGetMaskFlags (GDALRasterBandH hBand)
-    Return the status flags of the mask band associated with the band. 
-CPLErr  GDALCreateMaskBand (GDALRasterBandH hBand, int nFlags)
-    Adds a mask band to the current band. 
+"""
+
+GDALGetMaskBand = _libgdal.GDALGetMaskBand
+GDALGetMaskBand.restype = gdal_rasterband_h
+GDALGetMaskBand.argtypes = [gdal_rasterband_h]
+
+GDALGetMaskFlags = _libgdal.GDALGetMaskFlags
+GDALGetMaskFlags.restype = c_int
+GDALGetMaskFlags.argtypes = [gdal_rasterband_h]
+
+GDALCreateMaskBand = _libgdal.GDALCreateMaskBand
+GDALCreateMaskBand.restype = c_int
+GDALCreateMaskBand.argtypes = [gdal_rasterband_h, c_int]
+GDALCreateMaskBand.errcheck = cplerr_errcheck
+
+"""
 GDALAsyncStatusType     GDALARGetNextUpdatedRegion (GDALAsyncReaderH hARIO, double dfTimeout, int *pnXBufOff, int *pnYBufOff, int *pnXBufSize, int *pnYBufSize)
 int     GDALARLockBuffer (GDALAsyncReaderH hARIO, double dfTimeout)
 void    GDALARUnlockBuffer (GDALAsyncReaderH hARIO)
@@ -538,11 +644,28 @@ char **     GDALLoadRPCFile (const char *pszFilename, char **papszSiblingFiles)
 CPLErr  GDALWriteRPBFile (const char *pszFilename, char **papszMD)
 char **     GDALLoadIMDFile (const char *pszFilename, char **papszSiblingFiles)
 CPLErr  GDALWriteIMDFile (const char *pszFilename, char **papszMD)
-const char *    GDALDecToDMS (double, const char *, int)
-double  GDALPackedDMSToDec (double)
-    Convert a packed DMS value (DDDMMMSSS.SS) into decimal degrees. 
-double  GDALDecToPackedDMS (double)
-    Convert decimal degrees into packed DMS value (DDDMMMSSS.SS). 
+"""
+
+GDALDecToDMS = _libgdal.GDALDecToDMS
+GDALDecToDMS.restype = c_char_p
+GDALDecToDMS.argtypes = [c_double, c_char_p, c_int]
+
+GDALPackedDMSToDec = _libgdal.GDALPackedDMSToDec
+GDALPackedDMSToDec.restype = c_double
+GDALPackedDMSToDec.argtypes = [c_double]
+
+GDALDecToPackedDMS = _libgdal.GDALDecToPackedDMS
+GDALDecToPackedDMS.restype = c_double
+GDALDecToPackedDMS.argtypes = [c_double]
+
+GDALVersionInfo = _libgdal.GDALVersionInfo
+GDALVersionInfo.restype = c_char_p
+GDALVersionInfo.argtypes = [c_char_p]
+
+
+
+
+"""
 const char *    GDALVersionInfo (const char *)
     Get runtime version information. 
 int     GDALCheckVersion (int nVersionMajor, int nVersionMinor, const char *pszCallingComponentName)
@@ -644,23 +767,6 @@ CPLVirtualMem *     GDALDatasetGetTiledVirtualMem (GDALDatasetH hDS, GDALRWFlag 
     Create a CPLVirtualMem object from a GDAL dataset object, with tiling organization. 
 CPLVirtualMem *     GDALRasterBandGetTiledVirtualMem (GDALRasterBandH hBand, GDALRWFlag eRWFlag, int nXOff, int nYOff, int nXSize, int nYSize, int nTileXSize, int nTileYSize, GDALDataType eBufType, size_t nCacheSize, int bSingleThreadUsage, char **papszOptions)
     Create a CPLVirtualMem object from a GDAL rasterband object, with tiling organization. 
-
-
 """
-
-
-use_exceptions()
-
-
-
-
-GDALAllRegister()
-
-#print GDALOpen("/home/fabian/dev/eoxserver/eoxserver_git/autotest/autotest/data/asar/ASA_WSM_1PNDPA20050331_075939_000000552036_00035_16121_0775.tiff", 0)
-
-
-d = GDALGetDriverByName("GTiff")
-print GDALGetDriverCreationOptionList(d)
-
 
 
